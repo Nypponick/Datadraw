@@ -15,7 +15,7 @@ def clean_percentage(s):
     return float(s)
 
 # Load the data
-file_path = 'd:/Usuários/User/Área de Trabalho/dados drawback_Kilbra/Testes_Fechamento - Dashboard.csv'
+file_path = 'Testes_Fechamento - Dashboard.csv'
 
 # Read the summary table
 resumo_df = pd.read_csv(file_path, skiprows=3, nrows=3, usecols=[1, 2], header=None, names=['Metrica', 'Valor'])
