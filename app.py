@@ -139,19 +139,15 @@ with col4:
 # Add Purchase Planning Calculator with toggle
 st.header('🎯 Planejamento de Compras para DU-Es')
 
-# Create a toggle button to show/hide the calculator
-show_planning = st.button(
-    "📊 Abrir Calculadora de Compras" if 'show_planning_calculator' not in st.session_state or not st.session_state.show_planning_calculator 
-    else "📊 Fechar Calculadora de Compras",
-    help="Clique para mostrar ou ocultar a calculadora de planejamento de compras"
+# Use st.toggle for better immediate response
+show_planning_calculator = st.toggle(
+    "📊 Mostrar Calculadora de Compras",
+    value=False,
+    help="Ative para mostrar a calculadora de planejamento de compras baseada no número e valor das DU-Es"
 )
 
-# Toggle the state
-if show_planning:
-    st.session_state.show_planning_calculator = not getattr(st.session_state, 'show_planning_calculator', False)
-
 # Show the calculator only if the toggle is active
-if getattr(st.session_state, 'show_planning_calculator', False):
+if show_planning_calculator:
     # Create input section
     plan_col1, plan_col2, plan_col3 = st.columns(3)
 
@@ -373,7 +369,7 @@ if getattr(st.session_state, 'show_planning_calculator', False):
         st.success(f"💡 **Recomendação:** Focar nos primeiros {min(5, len(priority_items))} items da lista que representam {priority_items.head(5)['Custo Compra (USD)'].sum()/total_purchase_cost*100:.1f}% do investimento total.")
 
 else:
-    st.info("💡 **Dica:** Clique no botão acima para abrir a calculadora e planejar suas compras com base no número e valor das DU-Es que você pretende processar.")
+    st.info("💡 **Dica:** Ative o toggle acima para abrir a calculadora e planejar suas compras com base no número e valor das DU-Es que você pretende processar.")
 
 st.divider()
 
