@@ -136,228 +136,244 @@ with col4:
         help="Valor total em USD dos items que estão em situação de déficit (saldo negativo). Este valor representa o montante financeiro potencialmente em risco devido à utilização excessiva do estoque em relação ao disponível. Valores altos requerem atenção imediata para reposição."
     )
 
-# Add Purchase Planning Calculator
+# Add Purchase Planning Calculator with toggle
 st.header('🎯 Planejamento de Compras para DU-Es')
 
-# Create input section
-plan_col1, plan_col2, plan_col3 = st.columns(3)
-
-with plan_col1:
-    # Number of DU-Es planned
-    planned_due_count = st.number_input(
-        "Número de DU-Es Planejadas:",
-        min_value=1,
-        max_value=1000,
-        value=5,
-        help="Quantas DU-Es você planeja processar?"
-    )
-
-with plan_col2:
-    # Value per DU-E
-    value_per_due = st.number_input(
-        "Valor por DU-E (USD):",
-        min_value=1000.0,
-        max_value=10000000.0,
-        value=120000.0,
-        step=1000.0,
-        help="Valor médio estimado para cada DU-E"
-    )
-
-with plan_col3:
-    # Safety margin
-    safety_margin = st.slider(
-        "Margem de Segurança (%):",
-        min_value=0,
-        max_value=100,
-        value=15,
-        help="Margem adicional para cobrir variações e imprevistos"
-    )
-
-# Calculate planning results
-total_planned_value = planned_due_count * value_per_due
-
-# Calculate requirements for each item based on historical usage patterns
-planning_results = []
-
-for _, item_row in df.iterrows():
-    item_num = item_row['Item']
-    avg_usage_per_due = item_row['Média Utilização/DU-E']
-    current_stock = item_row['Saldo Disponível']
-    unit_value = item_row['Valor Médio Unitário (USD)']
-    
-    # Calculate total needed for planned DU-Es
-    total_needed = avg_usage_per_due * planned_due_count
-    
-    # Apply safety margin
-    total_with_margin = total_needed * (1 + safety_margin / 100)
-    
-    # Calculate net purchase needed (considering current stock)
-    net_purchase_needed = max(0, total_with_margin - current_stock)
-    
-    # Calculate costs
-    purchase_cost = net_purchase_needed * unit_value
-    
-    # Calculate coverage analysis
-    current_due_coverage = current_stock / avg_usage_per_due if avg_usage_per_due > 0 else float('inf')
-    
-    planning_results.append({
-        'Item': item_num,
-        'Uso Médio por DU-E': avg_usage_per_due,
-        'Estoque Atual': current_stock,
-        'Total Necessário': total_needed,
-        'Com Margem Segurança': total_with_margin,
-        'Necessidade Compra': net_purchase_needed,
-        'Custo Compra (USD)': purchase_cost,
-        'Cobertura Atual (DU-Es)': current_due_coverage,
-        'Valor Unitário (USD)': unit_value
-    })
-
-planning_df = pd.DataFrame(planning_results)
-
-# Calculate summary metrics
-total_purchase_cost = planning_df['Custo Compra (USD)'].sum()
-items_need_purchase = len(planning_df[planning_df['Necessidade Compra'] > 0])
-items_sufficient_stock = len(planning_df[planning_df['Necessidade Compra'] == 0])
-critical_items = len(planning_df[planning_df['Cobertura Atual (DU-Es)'] < planned_due_count])
-
-# Display main summary
-st.subheader('📊 Resumo do Planejamento')
-summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
-
-with summary_col1:
-    st.metric(
-        "Valor Total Planejado",
-        f"USD {total_planned_value:,.0f}".replace(',', '.'),
-        delta=f"{planned_due_count} DU-Es × USD {value_per_due:,.0f}".replace(',', '.'),
-        help="Valor total estimado para todas as DU-Es planejadas"
-    )
-
-with summary_col2:
-    st.metric(
-        "Investimento em Compras",
-        f"USD {total_purchase_cost:,.0f}".replace(',', '.'),
-        delta=f"{(total_purchase_cost/total_planned_value*100):.1f}% do valor planejado".replace(',', '.'),
-        delta_color="normal" if total_purchase_cost/total_planned_value < 0.3 else "inverse",
-        help="Custo total estimado para compras necessárias"
-    )
-
-with summary_col3:
-    st.metric(
-        "Items Precisam Compra",
-        f"{items_need_purchase}",
-        delta=f"{items_sufficient_stock} têm estoque suficiente",
-        delta_color="inverse" if items_need_purchase > items_sufficient_stock else "normal",
-        help="Quantidade de items que precisam de reposição"
-    )
-
-with summary_col4:
-    st.metric(
-        "Items Críticos",
-        f"{critical_items}",
-        delta="estoque insuficiente para o plano",
-        delta_color="inverse" if critical_items > 0 else "normal",
-        help="Items cujo estoque atual não cobre as DU-Es planejadas"
-    )
-
-# Show detailed breakdown
-st.subheader('📋 Detalhamento por Item')
-
-# Filter options for the planning table
-show_options = st.selectbox(
-    "Mostrar:",
-    ["Todos os Items", "Apenas Items que Precisam Compra", "Apenas Items Críticos", "Items com Estoque Suficiente"]
+# Create a toggle button to show/hide the calculator
+show_planning = st.button(
+    "📊 Abrir Calculadora de Compras" if 'show_planning_calculator' not in st.session_state or not st.session_state.show_planning_calculator 
+    else "📊 Fechar Calculadora de Compras",
+    help="Clique para mostrar ou ocultar a calculadora de planejamento de compras"
 )
 
-# Apply filter
-if show_options == "Apenas Items que Precisam Compra":
-    filtered_planning_df = planning_df[planning_df['Necessidade Compra'] > 0]
-elif show_options == "Apenas Items Críticos":
-    filtered_planning_df = planning_df[planning_df['Cobertura Atual (DU-Es)'] < planned_due_count]
-elif show_options == "Items com Estoque Suficiente":
-    filtered_planning_df = planning_df[planning_df['Necessidade Compra'] == 0]
+# Toggle the state
+if show_planning:
+    st.session_state.show_planning_calculator = not getattr(st.session_state, 'show_planning_calculator', False)
+
+# Show the calculator only if the toggle is active
+if getattr(st.session_state, 'show_planning_calculator', False):
+    # Create input section
+    plan_col1, plan_col2, plan_col3 = st.columns(3)
+
+    with plan_col1:
+        # Number of DU-Es planned
+        planned_due_count = st.number_input(
+            "Número de DU-Es Planejadas:",
+            min_value=1,
+            max_value=1000,
+            value=5,
+            help="Quantas DU-Es você planeja processar?"
+        )
+
+    with plan_col2:
+        # Value per DU-E
+        value_per_due = st.number_input(
+            "Valor por DU-E (USD):",
+            min_value=1000.0,
+            max_value=10000000.0,
+            value=120000.0,
+            step=1000.0,
+            help="Valor médio estimado para cada DU-E"
+        )
+
+    with plan_col3:
+        # Safety margin
+        safety_margin = st.slider(
+            "Margem de Segurança (%):",
+            min_value=0,
+            max_value=100,
+            value=15,
+            help="Margem adicional para cobrir variações e imprevistos"
+        )
+
+    # Calculate planning results
+    total_planned_value = planned_due_count * value_per_due
+
+    # Calculate requirements for each item based on historical usage patterns
+    planning_results = []
+
+    for _, item_row in df.iterrows():
+        item_num = item_row['Item']
+        avg_usage_per_due = item_row['Média Utilização/DU-E']
+        current_stock = item_row['Saldo Disponível']
+        unit_value = item_row['Valor Médio Unitário (USD)']
+        
+        # Calculate total needed for planned DU-Es
+        total_needed = avg_usage_per_due * planned_due_count
+        
+        # Apply safety margin
+        total_with_margin = total_needed * (1 + safety_margin / 100)
+        
+        # Calculate net purchase needed (considering current stock)
+        net_purchase_needed = max(0, total_with_margin - current_stock)
+        
+        # Calculate costs
+        purchase_cost = net_purchase_needed * unit_value
+        
+        # Calculate coverage analysis
+        current_due_coverage = current_stock / avg_usage_per_due if avg_usage_per_due > 0 else float('inf')
+        
+        planning_results.append({
+            'Item': item_num,
+            'Uso Médio por DU-E': avg_usage_per_due,
+            'Estoque Atual': current_stock,
+            'Total Necessário': total_needed,
+            'Com Margem Segurança': total_with_margin,
+            'Necessidade Compra': net_purchase_needed,
+            'Custo Compra (USD)': purchase_cost,
+            'Cobertura Atual (DU-Es)': current_due_coverage,
+            'Valor Unitário (USD)': unit_value
+        })
+
+    planning_df = pd.DataFrame(planning_results)
+
+    # Calculate summary metrics
+    total_purchase_cost = planning_df['Custo Compra (USD)'].sum()
+    items_need_purchase = len(planning_df[planning_df['Necessidade Compra'] > 0])
+    items_sufficient_stock = len(planning_df[planning_df['Necessidade Compra'] == 0])
+    critical_items = len(planning_df[planning_df['Cobertura Atual (DU-Es)'] < planned_due_count])
+
+    # Display main summary
+    st.subheader('📊 Resumo do Planejamento')
+    summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
+
+    with summary_col1:
+        st.metric(
+            "Valor Total Planejado",
+            f"USD {total_planned_value:,.0f}".replace(',', '.'),
+            delta=f"{planned_due_count} DU-Es × USD {value_per_due:,.0f}".replace(',', '.'),
+            help="Valor total estimado para todas as DU-Es planejadas"
+        )
+
+    with summary_col2:
+        st.metric(
+            "Investimento em Compras",
+            f"USD {total_purchase_cost:,.0f}".replace(',', '.'),
+            delta=f"{(total_purchase_cost/total_planned_value*100):.1f}% do valor planejado".replace(',', '.'),
+            delta_color="normal" if total_purchase_cost/total_planned_value < 0.3 else "inverse",
+            help="Custo total estimado para compras necessárias"
+        )
+
+    with summary_col3:
+        st.metric(
+            "Items Precisam Compra",
+            f"{items_need_purchase}",
+            delta=f"{items_sufficient_stock} têm estoque suficiente",
+            delta_color="inverse" if items_need_purchase > items_sufficient_stock else "normal",
+            help="Quantidade de items que precisam de reposição"
+        )
+
+    with summary_col4:
+        st.metric(
+            "Items Críticos",
+            f"{critical_items}",
+            delta="estoque insuficiente para o plano",
+            delta_color="inverse" if critical_items > 0 else "normal",
+            help="Items cujo estoque atual não cobre as DU-Es planejadas"
+        )
+
+    # Show detailed breakdown
+    st.subheader('📋 Detalhamento por Item')
+
+    # Filter options for the planning table
+    show_options = st.selectbox(
+        "Mostrar:",
+        ["Todos os Items", "Apenas Items que Precisam Compra", "Apenas Items Críticos", "Items com Estoque Suficiente"]
+    )
+
+    # Apply filter
+    if show_options == "Apenas Items que Precisam Compra":
+        filtered_planning_df = planning_df[planning_df['Necessidade Compra'] > 0]
+    elif show_options == "Apenas Items Críticos":
+        filtered_planning_df = planning_df[planning_df['Cobertura Atual (DU-Es)'] < planned_due_count]
+    elif show_options == "Items com Estoque Suficiente":
+        filtered_planning_df = planning_df[planning_df['Necessidade Compra'] == 0]
+    else:
+        filtered_planning_df = planning_df
+
+    # Sort by purchase cost (highest first) to prioritize most expensive items
+    filtered_planning_df = filtered_planning_df.sort_values('Custo Compra (USD)', ascending=False)
+
+    # Format the planning dataframe for display
+    def format_planning_dataframe_brazilian(df):
+        def format_number_br(val):
+            if pd.isna(val) or val == 0:
+                return '-'
+            return f"{val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+        
+        def format_currency_br(val):
+            if pd.isna(val) or val == 0:
+                return '-'
+            return f"USD {val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+        
+        def format_coverage_br(val):
+            if pd.isna(val):
+                return '-'
+            if val == float('inf'):
+                return '∞'
+            return f"{val:.1f}".replace('.', ',')
+        
+        # Create display columns
+        display_columns = [
+            'Item',
+            'Uso Médio por DU-E',
+            'Estoque Atual',
+            'Total Necessário',
+            'Com Margem Segurança',
+            'Necessidade Compra',
+            'Custo Compra (USD)',
+            'Cobertura Atual (DU-Es)'
+        ]
+        
+        display_df = df[display_columns].copy()
+        
+        # Apply formatting and conditional styling
+        styled_df = display_df.style.format({
+            'Uso Médio por DU-E': format_number_br,
+            'Estoque Atual': format_number_br,
+            'Total Necessário': format_number_br,
+            'Com Margem Segurança': format_number_br,
+            'Necessidade Compra': format_number_br,
+            'Custo Compra (USD)': format_currency_br,
+            'Cobertura Atual (DU-Es)': format_coverage_br
+        }).apply(lambda x: [
+            'background-color: #ffebee; color: #c62828; font-weight: bold' if val < 0 else ''
+            for val in x
+        ], subset=['Estoque Atual']).apply(lambda x: [
+            'background-color: #fff3e0; color: #f57c00; font-weight: bold' if pd.notna(val) and val > 0 else ''
+            for val in x
+        ], subset=['Necessidade Compra']).apply(lambda x: [
+            'background-color: #ffebee; color: #c62828; font-weight: bold' if pd.notna(val) and val != float('inf') and val < planned_due_count else ''
+            for val in x
+        ], subset=['Cobertura Atual (DU-Es)'])
+        
+        return styled_df
+
+    # Display the planning table
+    st.info(f"📊 Mostrando {len(filtered_planning_df)} items | Filtro: {show_options}")
+    st.dataframe(format_planning_dataframe_brazilian(filtered_planning_df), use_container_width=True)
+
+    # Show purchase summary by priority
+    if items_need_purchase > 0:
+        st.subheader('🛒 Lista Prioritária de Compras')
+        
+        priority_items = planning_df[planning_df['Necessidade Compra'] > 0].sort_values('Custo Compra (USD)', ascending=False).head(10)
+        
+        priority_summary = {
+            'Prioridade': [f"#{i+1}" for i in range(len(priority_items))],
+            'Item': priority_items['Item'].tolist(),
+            'Quantidade Necessária': [f"{val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') for val in priority_items['Necessidade Compra']],
+            'Investimento (USD)': [f"USD {val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') for val in priority_items['Custo Compra (USD)']],
+            'Urgência': ['🔴 Crítico' if cov < planned_due_count else '🟡 Importante' for cov in priority_items['Cobertura Atual (DU-Es)']]
+        }
+        
+        priority_df = pd.DataFrame(priority_summary)
+        st.table(priority_df)
+        
+        st.success(f"💡 **Recomendação:** Focar nos primeiros {min(5, len(priority_items))} items da lista que representam {priority_items.head(5)['Custo Compra (USD)'].sum()/total_purchase_cost*100:.1f}% do investimento total.")
+
 else:
-    filtered_planning_df = planning_df
-
-# Sort by purchase cost (highest first) to prioritize most expensive items
-filtered_planning_df = filtered_planning_df.sort_values('Custo Compra (USD)', ascending=False)
-
-# Format the planning dataframe for display
-def format_planning_dataframe_brazilian(df):
-    def format_number_br(val):
-        if pd.isna(val) or val == 0:
-            return '-'
-        return f"{val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-    
-    def format_currency_br(val):
-        if pd.isna(val) or val == 0:
-            return '-'
-        return f"USD {val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
-    
-    def format_coverage_br(val):
-        if pd.isna(val):
-            return '-'
-        if val == float('inf'):
-            return '∞'
-        return f"{val:.1f}".replace('.', ',')
-    
-    # Create display columns
-    display_columns = [
-        'Item',
-        'Uso Médio por DU-E',
-        'Estoque Atual',
-        'Total Necessário',
-        'Com Margem Segurança',
-        'Necessidade Compra',
-        'Custo Compra (USD)',
-        'Cobertura Atual (DU-Es)'
-    ]
-    
-    display_df = df[display_columns].copy()
-    
-    # Apply formatting and conditional styling
-    styled_df = display_df.style.format({
-        'Uso Médio por DU-E': format_number_br,
-        'Estoque Atual': format_number_br,
-        'Total Necessário': format_number_br,
-        'Com Margem Segurança': format_number_br,
-        'Necessidade Compra': format_number_br,
-        'Custo Compra (USD)': format_currency_br,
-        'Cobertura Atual (DU-Es)': format_coverage_br
-    }).apply(lambda x: [
-        'background-color: #ffebee; color: #c62828; font-weight: bold' if val < 0 else ''
-        for val in x
-    ], subset=['Estoque Atual']).apply(lambda x: [
-        'background-color: #fff3e0; color: #f57c00; font-weight: bold' if pd.notna(val) and val > 0 else ''
-        for val in x
-    ], subset=['Necessidade Compra']).apply(lambda x: [
-        'background-color: #ffebee; color: #c62828; font-weight: bold' if pd.notna(val) and val != float('inf') and val < planned_due_count else ''
-        for val in x
-    ], subset=['Cobertura Atual (DU-Es)'])
-    
-    return styled_df
-
-# Display the planning table
-st.info(f"📊 Mostrando {len(filtered_planning_df)} items | Filtro: {show_options}")
-st.dataframe(format_planning_dataframe_brazilian(filtered_planning_df), use_container_width=True)
-
-# Show purchase summary by priority
-if items_need_purchase > 0:
-    st.subheader('🛒 Lista Prioritária de Compras')
-    
-    priority_items = planning_df[planning_df['Necessidade Compra'] > 0].sort_values('Custo Compra (USD)', ascending=False).head(10)
-    
-    priority_summary = {
-        'Prioridade': [f"#{i+1}" for i in range(len(priority_items))],
-        'Item': priority_items['Item'].tolist(),
-        'Quantidade Necessária': [f"{val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') for val in priority_items['Necessidade Compra']],
-        'Investimento (USD)': [f"USD {val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') for val in priority_items['Custo Compra (USD)']],
-        'Urgência': ['🔴 Crítico' if cov < planned_due_count else '🟡 Importante' for cov in priority_items['Cobertura Atual (DU-Es)']]
-    }
-    
-    priority_df = pd.DataFrame(priority_summary)
-    st.table(priority_df)
-    
-    st.success(f"💡 **Recomendação:** Focar nos primeiros {min(5, len(priority_items))} items da lista que representam {priority_items.head(5)['Custo Compra (USD)'].sum()/total_purchase_cost*100:.1f}% do investimento total.")
+    st.info("💡 **Dica:** Clique no botão acima para abrir a calculadora e planejar suas compras com base no número e valor das DU-Es que você pretende processar.")
 
 st.divider()
 
